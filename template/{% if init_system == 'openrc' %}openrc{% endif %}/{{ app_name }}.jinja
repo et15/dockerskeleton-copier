@@ -1,0 +1,56 @@
+#!/sbin/openrc-run
+# OpenRC counterpart of the systemd unit: `docker compose up -d` on start,
+# `down` on stop, with secrets decrypted into /run/{{ app_name }}/secrets.
+
+name="{{ app_name }}"
+description="{{ app_description }}"
+extra_started_commands="reload"
+
+# OpenRC has no RuntimeDirectory=: created in start_pre, and handed to
+# bin/dockercompose.sh the same way systemd would.
+runtime_dir="/run/{{ app_name }}"
+
+depend() {
+    need docker
+    after net
+}
+
+# Runs a command as {{ service_user }} in {{ app_path }}, with SOPS_AGE_KEY_FILE
+# from /etc/default/sops if set there. Values are fixed at render time, so
+# the -c string needs no runtime quoting.
+_run() {
+    (
+        set -a
+        [ -r /etc/default/sops ] && . /etc/default/sops
+        set +a
+        cd "{{ app_path }}" &&
+            su -s /bin/sh -c "RUNTIME_DIRECTORY=$runtime_dir exec $*" "{{ service_user }}"
+    )
+}
+
+start_pre() {
+    checkpath --directory --mode 0700 --owner "{{ service_user }}:{{ service_group }}" "$runtime_dir"
+}
+
+start() {
+    ebegin "Starting $name"
+    _run "{{ app_path }}/bin/up.sh"
+    eend $?
+}
+
+reload() {
+    ebegin "Reloading $name"
+    _run "{{ app_path }}/bin/up.sh"
+    eend $?
+}
+
+stop() {
+    ebegin "Stopping $name"
+    _run "{{ app_path }}/bin/dockercompose.sh down --remove-orphans"
+    eend $?
+}
+
+stop_post() {
+    # Don't leave decrypted secrets behind if `down` failed.
+    rm -rf "$runtime_dir/secrets"
+}

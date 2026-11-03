@@ -1,0 +1,9 @@
+#.env
+#*.env
+#!*.enc.env
+secrets/*
+!secrets/*.enc
+!secrets/.gitkeep
+
+backups/
+data/

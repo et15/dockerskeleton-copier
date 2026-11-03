@@ -1,0 +1,34 @@
+[Unit]
+Description={{ app_description }}
+Requires=docker.service
+After=docker.service
+
+[Service]
+User={{ service_user }}
+Group={{ service_group }}
+TimeoutStopSec=15
+Type=oneshot
+RemainAfterExit=yes
+Restart=on-failure
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths={{ app_path }}
+# Decrypted secrets live in /run/{{ app_name }}/secrets for as long as the unit
+# is active, and are wiped on stop. Must not be under PrivateTmp: dockerd
+# resolves bind mounts in the host mount namespace.
+RuntimeDirectory={{ app_name }}
+RuntimeDirectoryMode=0700
+
+WorkingDirectory={{ app_path }}
+# Optional: sets SOPS_AGE_KEY_FILE if the key isn't at /var/sops/age/keys.txt
+EnvironmentFile=-/etc/default/sops
+
+ExecStart={{ app_path }}/bin/up.sh
+ExecReload={{ app_path }}/bin/up.sh
+ExecStop={{ app_path }}/bin/dockercompose.sh down --remove-orphans
+
+[Install]
+WantedBy=multi-user.target

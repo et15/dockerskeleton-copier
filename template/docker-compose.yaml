@@ -1,0 +1,55 @@
+services:
+# some services
+#
+# Example: image that supports *_FILE natively (postgres, mariadb, ...).
+# Each service only gets the secrets listed under its own `secrets:`.
+#  db:
+#    image: postgres:17
+#    env_file: .env
+#    environment:
+#      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+#    secrets:
+#      - db_password
+#    networks:
+#      - default
+#
+# Example: image that only reads secrets from plain env vars. The
+# secrets-env shim turns API_TOKEN_FILE into API_TOKEN, then execs the
+# image's original entrypoint. Setting `entrypoint:` clears the image's
+# CMD, so repeat it under `command:`. Look both up with:
+#   docker image inspect -f '{{json .Config.Entrypoint}} {{json .Config.Cmd}}' <image>
+#  app:
+#    image: example/app:latest
+#    env_file: .env
+#    entrypoint: ["/bin/sh", "/secrets-env.sh", "/docker-entrypoint.sh"]
+#    command: ["serve"]
+#    environment:
+#      API_TOKEN_FILE: /run/secrets/api_token
+#    secrets:
+#      - api_token
+#    configs:
+#      - source: secrets-env
+#        target: /secrets-env.sh
+#    networks:
+#      - default
+#      - proxy
+
+# One entry per secrets/<name>.enc. ${SECRETS_DIR} is set by
+# bin/dockercompose.sh -- run compose through it, not directly.
+secrets:
+#  db_password:
+#    file: ${SECRETS_DIR:?run via bin/dockercompose.sh}/db_password
+#  api_token:
+#    file: ${SECRETS_DIR:?run via bin/dockercompose.sh}/api_token
+
+configs:
+  secrets-env:
+    file: ./scripts/secrets-env.sh
+
+volumes:
+# volumes
+
+networks:
+  default:
+  proxy:
+    external: true

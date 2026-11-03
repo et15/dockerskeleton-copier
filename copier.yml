@@ -1,0 +1,79 @@
+_min_copier_version: "9.0.0"
+_subdirectory: template
+
+# Created once, then owned by the project: `copier update` never touches them.
+_skip_if_exists:
+  - README.md
+  - docker-compose.yaml
+  - .env
+
+_message_after_copy: |
+  Created {{ app_name }}. Next steps:
+
+    cd {{ _copier_conf.dst_path }}
+    git init && git add -A && git commit -m "chore: init from services-dockerskeleton"
+    pre-commit install --hook-type pre-commit --hook-type commit-msg --hook-type pre-push
+
+  Then fill in docker-compose.yaml and add secrets with bin/secret-edit.sh.
+  Pull in later skeleton changes with `copier update`.
+
+app_name:
+  type: str
+  help: Service name (systemd unit, runtime dir /run/<name>)
+  default: "{{ _folder_name }}"
+  validator: >-
+    {% if not (app_name | regex_search('^[a-z0-9][a-z0-9_-]*$')) %}
+    Use lowercase letters, digits, '-' and '_'.
+    {% endif %}
+
+app_description:
+  type: str
+  help: One-line description (systemd Description=)
+  default: "{{ app_name }}"
+  # Ends up in a double-quoted shell string in the OpenRC script.
+  validator: >-
+    {% if app_description | regex_search('["$`\\\\\n]') %}
+    No quotes, '$', backticks, backslashes or newlines.
+    {% endif %}
+
+app_path:
+  type: str
+  help: Install path on the host
+  default: "/opt/{{ app_name }}"
+  validator: >-
+    {% if not (app_path | regex_search('^/[A-Za-z0-9._/-]+$')) %}
+    Must be an absolute path of letters, digits, '.', '_', '-' and '/'.
+    {% endif %}
+
+init_system:
+  type: str
+  help: Init system on the host
+  choices:
+    - systemd
+    - openrc
+  default: systemd
+
+service_user:
+  type: str
+  help: User the service runs as (needs access to the Docker socket)
+  validator: >-
+    {% if not (service_user | regex_search('^[a-z_][a-z0-9_-]*$')) %}
+    Not a valid user name.
+    {% endif %}
+
+service_group:
+  type: str
+  help: Group the service runs as
+  default: "{{ service_user }}"
+  validator: >-
+    {% if not (service_group | regex_search('^[a-z_][a-z0-9_-]*$')) %}
+    Not a valid group name.
+    {% endif %}
+
+age_recipients:
+  type: str
+  help: age public key(s) secrets are encrypted to, comma-separated
+  validator: >-
+    {% for r in age_recipients.split(',') %}{% if not r.strip().startswith('age1') %}
+    '{{ r.strip() }}' is not an age public key (age1...).
+    {% endif %}{% endfor %}

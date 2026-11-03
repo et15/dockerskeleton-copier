@@ -1,0 +1,16 @@
+# {{ app_name }}
+
+{{ app_description }}
+
+Deployed at `{{ app_path }}` as a Docker Compose stack under {{ init_system }}.
+See [docs/skeleton.md](docs/skeleton.md) for how secrets, the service and the
+commit hooks work.
+
+## Quick reference
+
+```
+bin/secret-edit.sh <name>           # create/edit secrets/<name>.enc
+bin/up.sh                           # decrypt secrets, docker compose up -d
+bin/dockercompose.sh <args>         # any docker compose command, with secrets
+copier update                       # pull in skeleton updates
+```
