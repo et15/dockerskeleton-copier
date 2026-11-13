@@ -46,11 +46,17 @@ SECRETS_DIR="$SECRETS_BASE/secrets"
 export SECRETS_DIR
 log_debug "SECRETS_DIR=$SECRETS_DIR"
 
+# Secrets are removed even if `down` fails (containers still running keep
+# the inodes they mounted); the exit code of `docker compose` is kept.
 if [[ "$1" == "down" ]]; then
-    docker compose -f "$PROJECTDIR/docker-compose.yaml" "$@"
+    rc=0
+    docker compose -f "$PROJECTDIR/docker-compose.yaml" "$@" || rc=$?
     rm -rf "$SECRETS_DIR"
     log_info "Removed decrypted secrets from $SECRETS_DIR"
-    exit 0
+    if (( rc != 0 )); then
+        log_error "docker compose $* failed (exit $rc)"
+    fi
+    exit "$rc"
 fi
 
 mkdir -p "$SECRETS_BASE"
