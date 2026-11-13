@@ -19,6 +19,7 @@ bin/
   up.sh              # entrypoint: docker compose up -d with secrets decrypted
   dockercompose.sh   # decrypts secrets/*.enc, then runs `docker compose <args>`
   secret-edit.sh     # create/edit a secrets/*.enc via `sops edit`
+  .common.sh         # shared logging helpers (log_info, die, ...), sourced by the scripts
 docker-compose.yaml  # the actual service definition (yours)
 .env                 # non-secret values shared by services (yours)
 secrets/
@@ -180,6 +181,29 @@ and stay there until `down` (or logout/reboot, since it's tmpfs).
 Requires `sops` and `docker compose` on `PATH`, plus a readable
 `SOPS_AGE_KEY_FILE` (sops handles age keys itself; the `age` tools are only
 needed to generate a key with `age-keygen`).
+
+### Logging
+
+The bash scripts in `bin/` and `scripts/hooks/` log through `bin/.common.sh`
+as `[timestamp] [LEVEL] message`, always on stderr, so the stdout of
+`bin/dockercompose.sh` stays the plain output of `docker compose`. `LOG_LEVEL`
+(`DEBUG`, `INFO`, `WARN`, `ERROR`, `FATAL`; default `INFO`) sets the minimum
+level printed; `DEBUG` also shows `$SECRETS_DIR` and the `docker compose`
+command line:
+
+```
+LOG_LEVEL=DEBUG bin/dockercompose.sh ps
+```
+
+Under systemd, set it with `systemctl edit <app_name>.service`:
+
+```
+[Service]
+Environment=LOG_LEVEL=DEBUG
+```
+
+`scripts/secrets-env.sh` doesn't use it: it runs inside the containers,
+under POSIX `sh`.
 
 ## Development tooling
 

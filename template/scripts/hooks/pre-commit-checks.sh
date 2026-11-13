@@ -2,11 +2,15 @@
 # scripts/hooks/pre-commit-checks.sh
 set -euo pipefail
 
+# scripts/hooks/ -> project root (template/ when run in the template repo)
+SCRIPT=$(readlink -f -- "${BASH_SOURCE[0]}")
+# shellcheck source=../../bin/.common.sh
+source "${SCRIPT%/*/*/*}/bin/.common.sh"
+
 fail=0
 
 if ! command -v jq >/dev/null 2>&1; then
-    echo "ERROR: jq is required for pre-commit secrets validation but was not found." >&2
-    exit 1
+    die "jq is required for pre-commit secrets validation but was not found."
 fi
 
 # All checks read the staged blob (":path"), not the working tree, so a
@@ -20,11 +24,11 @@ while IFS= read -r f; do
     case "$f" in
         secrets/.gitkeep) ;;
         secrets/*/*)
-            echo "ERROR: $f: subdirectories under secrets/ are never decrypted by bin/dockercompose.sh." >&2
+            log_error "$f: subdirectories under secrets/ are never decrypted by bin/dockercompose.sh."
             fail=1 ;;
         secrets/*.enc) ;;
         *)
-            echo "ERROR: $f is under secrets/ but isn't a *.enc file (plaintext secret?)." >&2
+            log_error "$f is under secrets/ but isn't a *.enc file (plaintext secret?)."
             fail=1 ;;
     esac
 done < <(git diff --cached --name-only --diff-filter=ACMR -- 'secrets/')
@@ -36,7 +40,7 @@ while IFS= read -r f; do
     content=$(git show ":$f")
 
     if ! jq empty <<<"$content" >/dev/null 2>&1; then
-        echo "ERROR: $f is not valid JSON." >&2
+        log_error "$f is not valid JSON."
         fail=1
         continue
     fi
@@ -46,7 +50,7 @@ while IFS= read -r f; do
     has_mac=$(jq '.sops | has("mac")' <<<"$content" 2>/dev/null || echo false)
 
     if [[ "$has_data" != "true" || "$has_sops" != "true" || "$has_mac" != "true" ]]; then
-        echo "ERROR: $f is in secrets/ with a .enc name but doesn't look like real SOPS output (missing 'data', 'sops', or 'sops.mac')." >&2
+        log_error "$f is in secrets/ with a .enc name but doesn't look like real SOPS output (missing 'data', 'sops', or 'sops.mac')."
         fail=1
     fi
 done < <(git diff --cached --name-only --diff-filter=ACMR -- 'secrets/*.enc')
@@ -63,16 +67,15 @@ while IFS= read -r f; do
     if [[ -n "$matches" ]]; then
         real=$(echo "$matches" | grep -P '=\s*\S' | grep -viP '_FILE\s*=' || true)
         if [[ -n "$real" ]]; then
-            echo "ERROR: $f contains a key matching PASS/SECRET/TOKEN/API_KEY/PRIVATE_KEY with a non-empty value:" >&2
-            echo "$real" >&2
+            log_error "$f contains a key matching PASS/SECRET/TOKEN/API_KEY/PRIVATE_KEY with a non-empty value:"
+            sed 's/^/    /' <<<"$real" >&2
             fail=1
         fi
     fi
 done < <(git diff --cached --name-only --diff-filter=ACMR -- '*.env' '*.env.*')
 
 if [[ "$fail" -eq 1 ]]; then
-    echo "" >&2
-    echo "Commit blocked. Encrypt real secrets with sops and move them to secrets/*.enc." >&2
+    log_error "Commit blocked. Encrypt real secrets with sops and move them to secrets/*.enc."
     exit 1
 fi
 

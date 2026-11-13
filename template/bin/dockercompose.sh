@@ -16,8 +16,12 @@ SECRET_FILE_MODE=444
 SECRETS_OWNER="${SECRETS_OWNER:-}"
 
 SCRIPT=$(readlink -f -- "${BASH_SOURCE[0]}")
+SCRIPTDIR="${SCRIPT%/*}"
 PROJECTDIR="${SCRIPT%/*/*}"
 PROJECT="${COMPOSE_PROJECT_NAME:-$(basename "$PROJECTDIR")}"
+
+# shellcheck source=.common.sh
+source "$SCRIPTDIR/.common.sh"
 
 export SOPS_AGE_KEY_FILE="${SOPS_AGE_KEY_FILE:-/var/sops/age/keys.txt}"
 
@@ -40,10 +44,12 @@ else
 fi
 SECRETS_DIR="$SECRETS_BASE/secrets"
 export SECRETS_DIR
+log_debug "SECRETS_DIR=$SECRETS_DIR"
 
 if [[ "$1" == "down" ]]; then
     docker compose -f "$PROJECTDIR/docker-compose.yaml" "$@"
     rm -rf "$SECRETS_DIR"
+    log_info "Removed decrypted secrets from $SECRETS_DIR"
     exit 0
 fi
 
@@ -67,10 +73,10 @@ for fenc in "$PROJECTDIR"/secrets/*.enc; do
     f="$(basename "${fenc%.enc}")"
     tmp="$SECRETS_DIR/.$f.tmp"
 
-    echo "Decrypting: secrets/$(basename "$fenc") -> \$SECRETS_DIR/$f" >&2
+    log_info "Decrypting: secrets/$(basename "$fenc") -> \$SECRETS_DIR/$f"
     if ! sops --input-type binary --output-type binary -d "$fenc" > "$tmp"; then
         rm -f "$tmp"
-        exit 1
+        die "Failed to decrypt secrets/$(basename "$fenc") (SOPS_AGE_KEY_FILE=$SOPS_AGE_KEY_FILE)"
     fi
     chmod "$SECRET_FILE_MODE" "$tmp"
     [[ -n "$SECRETS_OWNER" ]] && chown "$SECRETS_OWNER" "$tmp"
@@ -78,6 +84,7 @@ for fenc in "$PROJECTDIR"/secrets/*.enc; do
     count=$((count + 1))
 done
 
-echo "Decrypted $count secret(s) into $SECRETS_DIR" >&2
+log_info "Decrypted $count secret(s) into $SECRETS_DIR"
 
+log_debug "Running: docker compose -f $PROJECTDIR/docker-compose.yaml $*"
 docker compose -f "$PROJECTDIR/docker-compose.yaml" "$@"

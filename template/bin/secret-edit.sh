@@ -2,7 +2,11 @@
 set -euo pipefail
 
 SCRIPT=$(readlink -f -- "${BASH_SOURCE[0]}")
+SCRIPTDIR="${SCRIPT%/*}"
 PROJECTDIR="${SCRIPT%/*/*}"
+
+# shellcheck source=.common.sh
+source "$SCRIPTDIR/.common.sh"
 
 export SOPS_AGE_KEY_FILE="${SOPS_AGE_KEY_FILE:-/var/sops/age/keys.txt}"
 
@@ -15,8 +19,7 @@ fi
 # Keeps the name usable as a compose secret name and prevents writing
 # outside secrets/ (e.g. "../foo").
 if [[ ! "$1" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]]; then
-    echo "Invalid secret name: '$1' (allowed: letters, digits, '_', '.', '-')" >&2
-    exit 1
+    die "Invalid secret name: '$1' (allowed: letters, digits, '_', '.', '-')"
 fi
 
 mkdir -p "$PROJECTDIR/secrets"
